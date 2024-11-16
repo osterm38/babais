@@ -1,0 +1,34 @@
+[project]
+name = "babais"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    'babais-alg',
+    'babais-web',
+]
+
+[tool.uv.sources]
+babais-alg = { workspace = true }
+babais-web = { workspace = true }
+
+[tool.uv.workspace]
+members = [
+    "packages/babais-alg",
+    "packages/babais-web",
+]
+# exclude = []
+
+[project.scripts]
+babais = "babais.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ['babais']
