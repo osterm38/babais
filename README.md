@@ -2,7 +2,67 @@
 
 This is a project that attempts to emulate the game "Baba Is You."
 
-# features #
+
+# user quick start
+
+## install our (sub)package and cli globally
+
+with `uv`
+```sh
+uv tool install "babais @ git+https://github.com/osterm38/babais.git"
+# uv tool install "babais-web @ git+https://github.com/osterm38/babais.git#subdirectory=packages/babais-web"
+```
+
+or with `virtualenv` and `pip`
+```sh
+virtualenv .venv
+source .venv/bin/activate
+pip install "babais @ git+https://github.com/osterm38/babais.git"
+# pip install "babais-web @ git+https://github.com/osterm38/babais.git#subdirectory=packages/babais-web"
+```
+
+## run cli
+
+with `uv`
+```sh
+uv run babais --help
+# uv run babais-web --help
+```
+
+or more directly
+```sh
+source .venv/bin/activate
+babais --help
+# babais-web --help
+```
+
+
+# dev quick start
+
+## acquire source code
+
+```sh
+mkdir babais
+cd babais
+git clone https://github.com/osterm38/babais.git
+```
+
+## setup virtual environment and install our package
+
+with `uv`
+```sh
+uv sync
+```
+
+or with `virtualenv` and `pip`
+```sh
+virtualenv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+
+# features
 
 Major work in progress:
 
