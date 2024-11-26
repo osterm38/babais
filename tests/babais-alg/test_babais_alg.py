@@ -14,7 +14,7 @@ class TestSentenceBabaIsYou:
         
     def test_sentence_to_leftmost_rule_is_self(self):
         sentence = Sentence(words=self.words)
-        rule = sentence.to_leftmost_rule()
+        rule = sentence.to_first_rule()
         assert sentence.words == rule.words
     
 
@@ -31,7 +31,7 @@ class TestSentenceYouIsBaba:
         
     def test_sentence_to_leftmost_rule_is_none(self):
         sentence = Sentence(words=self.words)
-        rule = sentence.to_leftmost_rule()
+        rule = sentence.to_first_rule()
         assert rule is None
 
 
@@ -48,7 +48,7 @@ class TestSentenceBabaIsYouBabaIsYou:
         
     def test_sentence_to_leftmost_rule_is_first_half(self):
         sentence = Sentence(words=self.words)
-        rule = sentence.to_leftmost_rule()
+        rule = sentence.to_first_rule()
         assert sentence.words[:3] == rule.words
     
 
@@ -65,7 +65,7 @@ class TestSentenceBabaIsYouYouIsBaba:
         
     def test_sentence_to_leftmost_rule_is_first_half(self):
         sentence = Sentence(words=self.words)
-        rule = sentence.to_leftmost_rule()
+        rule = sentence.to_first_rule()
         assert sentence.words[:3] == rule.words
     
 
@@ -82,7 +82,7 @@ class TestSentenceYouIsBabaBabaIsYou:
         
     def test_sentence_to_leftmost_rule_is_last_half(self):
         sentence = Sentence(words=self.words)
-        rule = sentence.to_leftmost_rule()
+        rule = sentence.to_first_rule()
         assert sentence.words[3:] == rule.words
 
 
@@ -99,7 +99,7 @@ class TestSentenceIsBabaBabaIsPushPushIs:
         
     def test_sentence_to_leftmost_rule_part(self):
         sentence = Sentence(words=self.words)
-        rule = sentence.to_leftmost_rule()
+        rule = sentence.to_first_rule()
         assert sentence.words[2:5] == rule.words
     
 
@@ -116,7 +116,7 @@ class TestSentenceYouIsBabaAndRobotIsPushAndYouIsBaba:
         
     def test_sentence_to_leftmost_rule_part(self):
         sentence = Sentence(words=self.words)
-        rule = sentence.to_leftmost_rule()
+        rule = sentence.to_first_rule()
         assert sentence.words[2:9] == rule.words
     
 
@@ -133,7 +133,7 @@ class TestSentenceYouIsBabaAndYouIsPushAndYouIsBaba:
         
     def test_sentence_to_leftmost_rule_is_none(self):
         sentence = Sentence(words=self.words)
-        rule = sentence.to_leftmost_rule()
+        rule = sentence.to_first_rule()
         assert rule is None
     
 class TestLocation:
