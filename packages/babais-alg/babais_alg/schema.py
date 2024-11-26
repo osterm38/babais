@@ -29,14 +29,26 @@ block (sub)types:
   - adjective (push, you, pull, win, shift, move, defeat, tele, ...)
   - conjunction (and, on)
   - prefix (not)
+
+- a block has a type, faces a direction
+- a square has a set of blocks and a location on a grid
+- a grid has contiguous squares in xy space
+- a level has a current and sequence of historical grids
+- a ramble is a sequence of arbitrary word blocks
+- a rule represents a ramble that is a valid sentence, which can be/is broken into its subject, verb, and object
+  - a subject is a compound phrase where conjunctions separate one or more (noun-only) phrases
+  - an object is a compound phrase where conjunctions separate one or more (simple noun or adjective) phrases
+  - e.g.: [(leaf) <and> (not baba) <and> (robot on water)] [is] [{push} <and> {not empty}]
+    - verb = is
+    - subject (simple/complex noun) phrases: leaf (simple noun), not baba (simple noun), robot on water (conditional noun)
+    - object (simple noun/adjective) phrases: push (simple adjective), not empty (simple noun)
     
+
 """
 from enum import IntEnum
 from itertools import product, chain
-# import numpy as np
-# import numpy.typing as npt
-from pydantic import BaseModel, Field, NonNegativeInt, conlist
-from typing import Self, Iterator, Annotated
+from pydantic import BaseModel, Field, conlist
+from typing import Self, Iterator
 
 
 class Location(BaseModel):
@@ -70,14 +82,14 @@ class Block(BaseModel):
     pass
     # facing: Direction = Direction.DOWN
 
-# *** words ************
+# *** word blocks **********************************
 # blocks that only ever appear as a single text word
-# **********************
+# **************************************************
 
-class Word(Block):
+class WordBlock(Block):
     pass
 
-class Conditional(Word):
+class Conditional(WordBlock):
     pass
 
 class On(Conditional):
@@ -86,20 +98,19 @@ class On(Conditional):
 class Facing(Conditional):
     pass
 
-CONDITION_CLASSES = (On, Facing)
+CONDITIONAL_CLASSES = (On, Facing)
 
 
-class Conjunction(Word):
+class Conjunction(WordBlock):
     pass
 
 class And(Conjunction):
     pass
 
-
 CONJUNCTION_CLASSES = (And,)
 
 
-class Prefix(Word):
+class Prefix(WordBlock):
     pass
 
 class Not(Prefix):
@@ -108,7 +119,7 @@ class Not(Prefix):
 PREFIX_CLASSES = (Not,)
 
 
-class Verb(Word):
+class Verb(WordBlock):
     pass
 
 class Is(Verb):
@@ -123,7 +134,7 @@ class Makes(Verb):
 VERB_CLASSES = (Is, Has, Makes)
 
 
-class Adjective(Word):
+class Adjective(WordBlock):
     pass
 
 class You(Adjective):
@@ -144,10 +155,13 @@ class Push(Adjective):
 class Pull(Adjective):
     pass
 
-ADJECTIVE_CLASSES = (You, Win, Shift, Stop, Push, Pull)
+class More(Adjective):
+    pass
+
+ADJECTIVE_CLASSES = (You, Win, Shift, Stop, Push, Pull, More)
 
 
-class Noun(Word):
+class Noun(WordBlock):
     pass
     # def image_cls(self) -> type[Block]:
     #     raise NotImplementedError()
@@ -173,88 +187,64 @@ class Empty(Noun):
 class All(Noun):
     pass
 
-
 NOUN_CLASSES = (Baba, Flag, Text, Me, Robot, Empty, All)
 
 
-# *** images ***********
+# *** images blocks ********************
 # blocks that only ever appear as images
-# **********************
+# **************************************
 
-class Image(Block):
+class ImageBlock(Block):
     pass
 
-class IBaba(Image):
+class IBaba(ImageBlock):
     pass
 
-class IFlag(Image):
+class IFlag(ImageBlock):
     pass
 
-class IMe(Image):
+class IMe(ImageBlock):
     pass
 
-class IRobot(Image):
+class IRobot(ImageBlock):
     pass
 
-class IEmpty(Image):
+class IEmpty(ImageBlock):
     pass
 
 IMAGE_CLASSES = (IBaba, IFlag, IMe, IRobot, IEmpty)
 
-        
-class Sentence(BaseModel):
-    """
-    an arbitrary sequence of word blocks, with methods to pull out valid sentence structures
+
+class Ramble(BaseModel):
+    words: list[WordBlock]
     
-    valid rule structure: subject verb object, where
-    - subject:
-      - simple: [prefix] noun
-        - e.g.:
-          - baba
-          - not baba
-      - complex: simple [conjunction simple [conjuction simple]]
-        - e.g.:
-          - baba
-          - not baba
-          - baba and robot
-          - baba on robot
-          - not baba and not robot
-    - object:
-      - simple: [prefix] noun | [prefix] adjective
-        - e.g.:
-          - baba
-          - not baba
-          - shift
-          - not shift
-      - complex: simple [conjunction simple [conjuction simple]]
-        - e.g.:
-          - baba
-          - not baba
-          - baba and robot
-          - baba on robot
-          - not baba and not robot
-          - baba and shift
-          - not baba and not shift
-          - move and shift
-          - not move and not shift
-          
-    make into binary tree?
-    - subject verb object
-    - note: subject is more restrictive than object, i.e. any subject can be an object
-    - parse first come first serve, meaning, leftmost valid structure is first, remove it from sequence, repeat
-    
-    """
-    words: list[Word]
-    
-    @property
-    def num_words(self) -> int:
+    def __len__(self) -> int:
         return len(self.words)
-   
-    def _rules_gen(self, max_depth: int = 10) -> Iterator[Self]:
+    
+    def __iter__(self) -> Iterator[WordBlock]:
+        return iter(self.words)
+    
+    def split_iter(self, by: type[WordBlock] = Conjunction, include_split_word: bool = False) -> Iterator["Ramble"] | Iterator[tuple["Ramble", WordBlock | None]]:
+        # baba and not robot and -> [[baba], [not, robot], []]
+        # baba is you -> [[baba, is, you]]
+        # -> [[]]
+        lst: list[WordBlock] = []
+        for word in self:
+            if isinstance(word, by):
+                yield (Ramble(words=lst), word) if include_split_word else Ramble(words=lst)
+                lst = []
+            else:
+                lst.append(word)
+        yield (Ramble(words=lst), None) if include_split_word else Ramble(words=lst)
+    
+    def split(self, by: type[WordBlock] = Conjunction, include_split_word: bool = False) -> list["Ramble"] | list[tuple["Ramble", WordBlock | None]]:
+        return list(self.split_iter(by=by, include_split_word=include_split_word))
+
+    def rules_iter(self) -> Iterator["Rule"]:
         """generate any/all rules found, from left to right"""
-        verb_idxs = [i for i, word in enumerate(self.words) if isinstance(word, Verb)]
+        verb_idxs = [i for i, word in enumerate(self) if isinstance(word, Verb)]
         start_idxs = [0] + [i+1 for i in verb_idxs]
-        verb_idxs.append(self.num_words)
+        verb_idxs.append(len(self))
         end_idxs = verb_idxs[1:]
 
         for start_idx, verb_idx, end_idx in zip(start_idxs, verb_idxs, end_idxs):
@@ -265,121 +255,63 @@ class Sentence(BaseModel):
                 right_words = self.words[verb_idx+1:right_idx]
                 # print(f'{left_idx=}, {left_words=}')
                 # print(f'{right_idx=}, {right_words=}')
-                if Sentence(words=left_words).is_subject(max_depth=max_depth) and Sentence(words=right_words).is_object(max_depth=max_depth):
-                    yield Sentence(words=left_words + [verb] + right_words)
+                subj = Ramble(words=left_words)
+                obj = Ramble(words=right_words)
+                if subj.is_subject() and obj.is_object():
+                    yield Rule(subject=subj, verb=verb, object=obj)
                     # only one rule can be formed between verbs
                     break
     
-    def to_rules(self, max_depth: int = 10) -> list[Self]:
-        return list(self._rules_gen(max_depth=max_depth))
+    def to_rules(self) -> list["Rule"]:
+        return list(self.rules_iter())
     
-    def to_rule(self, max_depth: int = 10, idx: int = 0) -> Self | None:
-        for i, rule in enumerate(self._rules_gen(max_depth=max_depth)):
+    def to_rule(self, idx: int = 0):# -> "Rule" | None:
+        for i, rule in enumerate(self.rules_iter()):
             if i == idx:
                 return rule
-        else:
-            return None
-        
-    def to_subject(self, max_depth: int = 10, idx: int = 0) -> Self | None:
-        rule = self.to_rule(max_depth=max_depth, idx=idx)
-        if rule is not None:
-            for i, word in enumerate(rule.words):
-                if isinstance(word, Verb):
-                    s = Sentence(words=self.words[:i])
-                    assert s.is_subject(max_depth=max_depth)
-                    return s
-        else:
-            return None
-    
-    def to_object(self, max_depth: int = 10, idx: int = 0) -> Self | None:
-        rule = self.to_rule(max_depth=max_depth, idx=idx)
-        if rule is not None:
-            for i, word in enumerate(rule.words):
-                if isinstance(word, Verb):
-                    s = Sentence(words=self.words[i+1:])
-                    assert s.is_object(max_depth=max_depth)
-                    return s
-        else:
-            return None
-        
-    def to_verb(self, max_depth: int = 10, idx: int = 0) -> Self | None:
-        rule = self.to_rule(max_depth=max_depth, idx=idx)
-        if rule is not None:
-            for i, word in enumerate(rule.words):
-                if isinstance(word, Verb):
-                    s = Sentence(words=[word])
-                    assert s.is_verb(max_depth=max_depth)
-                    return s
-        else:
-            return None
-        
-    def to_first_rule(self, max_depth: int = 10) -> Self | None:
-        return self.to_rule(max_depth=max_depth, idx=0)
-        
-    def is_rule(self, max_depth: int = 10) -> bool:
-        # rule means: subject verb object
-        for verb_idx, word in enumerate(self.words):
-            if isinstance(word, Verb):
-                break
-        else:
-            return False
-        left_words = self.words[:verb_idx]
-        right_words = self.words[verb_idx+1:]
-        # print(f'{verb_idx=}, {left_words=}, {right_words=}')
-        return Sentence(words=left_words).is_subject(max_depth=max_depth) and Sentence(words=right_words).is_object(max_depth=max_depth)
+        return None
     
     def is_verb(self):
-        # subject means: noun [conj noun [conj noun...]]
-        return len(self.words) == 1 and isinstance(self.words[0], Verb)
+        return len(self) == 1 and isinstance(self.words[0], Verb)
     
-    def is_subject(self, max_depth: int = 10):
+    def is_noun_phrase(self) -> bool:
+        conds = self.split(by=Conditional)
+        return (len(conds) <= 2) and all(cond.is_simple(_type=Noun) for cond in conds)
+
+    def is_subject(self) -> bool:
         # subject means: noun [conj noun [conj noun...]]
-        return self.is_complex(restrict_to_noun_only=True, restrict_to_conj_only=False, max_depth=max_depth)
-    
-    def is_object(self, max_depth: int = 10):
+        return all(phrase.is_noun_phrase() for phrase in self.split(by=Conjunction))
+        
+    def is_object(self):
         # object means: noun|adj [conj noun|adj [conj noun|adj...]]
-        return self.is_complex(restrict_to_noun_only=False, restrict_to_conj_only=True, max_depth=max_depth)
+        return all(phrase.is_simple(_type=Noun) or phrase.is_simple(_type=Adjective) for phrase in self.split(by=Conjunction))
     
-    def is_complex(self, restrict_to_noun_only: bool = False, restrict_to_conj_only: bool = True, max_depth: int = 10):
-        # complex means: simple [conj simple [conj simple...]]
-        # or: simple [conditional simple]
-        lst = []
-        n_found = 0
-        for i, word in enumerate(self.words):
-            if isinstance(word, Conditional):
-                if restrict_to_conj_only or n_found > 0:
-                    return False
-                elif Sentence(words=lst).is_simple(restrict_to_noun_only=restrict_to_noun_only):
-                    lst = self.words[i+1:]
-                    break
-                else:
-                    return False
-            elif isinstance(word, Conjunction):
-                if Sentence(words=lst).is_simple(restrict_to_noun_only=restrict_to_noun_only) and n_found < max_depth:
-                    n_found += 1
-                    lst = []
-                else:
-                    return False
-            else:
-                lst.append(word)
-        # last bit after last conjunction should be simple
-        return Sentence(words=lst).is_simple(restrict_to_noun_only=restrict_to_noun_only)
-    
-    def is_simple(self, restrict_to_noun_only: bool) -> bool:
-        # simple means: [prefix] noun/adj
-        Cls = Noun if restrict_to_noun_only else (Noun, Adjective)
-        if self.num_words < 1 or self.num_words > 2:
-            return False
-        else:
-            last_word = self.words[-1]
-            # print(f'{last_word=}, {Cls=}, {(not isinstance(last_word, Cls))=}, {self.num_words=}')
-            if not isinstance(last_word, Cls):
-                return False
-            elif (self.num_words == 2) and not isinstance(self.words[0], Prefix):
-                return False
-            return True
+    def is_simple(self, _type: type[WordBlock]) -> bool:
+        return not (
+            len(self) < 1 
+            or len(self) > 2
+            or not isinstance(self.words[-1], _type)
+            or (len(self) == 2 and not isinstance(self.words[0], Prefix))
+        )
 
 
+class Rule(BaseModel):
+    subject: Ramble
+    verb: Verb
+    object: Ramble
+    
+    def is_simplest_form(self) -> bool:
+        return len(self.to_simplest_forms()) == 1
+    
+    def simplest_forms_iter(self) -> Iterator["Rule"]:
+        for subj in self.subject.split(by=Conjunction):
+            for obj in self.object.split(by=Conjunction):
+                yield Rule(subject=subj, verb=self.verb, object=obj)
+    
+    def to_simplest_forms(self) -> list["Rule"]:
+        return list(self.simplest_forms_iter())
+    
+    
 class Square(BaseModel):
     loc: Location
     blocks: list[Block] = Field(default_factory=list[Block])
@@ -421,21 +353,21 @@ class Board(BaseModel):
             return None
         return self.row(y=y)[x]
             
-    def add_block(self, x: int, y: int, block: Block) -> bool:
+    def add_block(self, x: int, y: int, block: Block) -> Block | None:
         square = self.get(x=x, y=y)
         if square is not None and all(b is not block for b in square.blocks):
             square.blocks.append(block)
-            return True
-        return False
+            return block
+        return None
     
-    def pop_block(self, x: int, y: int, block: Block) -> bool:
+    def pop_block(self, x: int, y: int, block: Block) -> Block | None:
         square = self.get(x=x, y=y)
         if square is not None:
             for i, b in enumerate(square.blocks):
                 if b is block:
                     square.blocks.pop(i)
-                    return True
-        return False
+                    return block
+        return None
     
     def pop_blocks(self, x: int, y: int, block_type: type[Block] = Block) -> list[Block]:
         # remove all blocks of a (sub)type
@@ -467,12 +399,12 @@ class Board(BaseModel):
         for x in range(self.width):
             yield self.row(x=x)
     
-    def words(self, seq: GridLine) -> Iterator[list[Block]]:
+    def words_iter(self, seq: GridLine) -> Iterator[list[Block]]:
         # given a row or column (contiguous sequence of squares)
         # iterate over all possible maximal contiguous word sequences
         word_blocks_seq = []
         for square in seq:
-            word_blocks = [block for block in square.blocks if isinstance(block, Word)]
+            word_blocks = [block for block in square.blocks if isinstance(block, WordBlock)]
             if len(word_blocks) > 0:
                 word_blocks_seq.append(word_blocks_seq)
             else:
@@ -484,52 +416,54 @@ class Board(BaseModel):
             for combo in product(*word_blocks_seq):
                 yield combo
             
-    def rules(self) -> set[Sentence]:
-        rules = set[Sentence]()
+    def rules_iter(self, in_simplest_forms: bool = True) -> Iterator[Rule]:
         for seq in chain(self.rows(), self.cols()):
-            for words in self.words(seq):
-                for rule in Sentence(words=words).to_rules():
-                    rules.add(rule)
-        return rules
+            for words in self.words_iter(seq):
+                for rule in Ramble(words=words).rules_iter():
+                    if not in_simplest_forms:
+                        yield rule
+                    else:
+                        for simple_rule in rule.to_simplest_forms():
+                            yield simple_rule
+                    
+    def rules(self, in_simplest_forms: bool = True) -> list[Rule]:
+        return list(self.rules_iter(in_simplest_forms=in_simplest_forms))
     
-    def rules_with_verb_adj(self, verb_type: type[Verb] | None, adj_type: type[Adjective] | None) -> list[Sentence]:
-        rules = []
-        for rule in self.rules():
-            # subj = rule.to_subject()
-            verb = rule.to_verb()
+    def rules_with_iter(self, subj_type: type[Noun] | None = None, verb_type: type[Verb] | None = None, obj_type: type[Adjective | Noun] | None = None) -> Iterator[Rule]:
+        for rule in self.rules_iter(in_simplest_forms=True):
+            print(f'{rule=}')
+            if subj_type is not None:
+                # assert rule.subject.is_simple()
+                words = rule.subject.split(by=Conditional)            
+                if not any(isinstance(word, obj_type) for word in words):
+                    continue
+
             if verb_type is not None:
-                if not isinstance(verb.words[0], verb_type):
+                if not isinstance(rule.verb, verb_type):
                     continue
             
-            if adj_type is not None:
-                for word in rule.to_object():
-                    if isinstance(word, adj_type):
-                        rules.append(rule)
-        return rules
+            if obj_type is not None:
+                # assert rule.object.is_simple()
+                word = rule.object.words[-1]
+                if not isinstance(word, obj_type):
+                    continue
+            
+            yield rule
     
-    def subjects_is_you(self) -> list[Word]:
-        subjects = []
-        for rule in self.rules_with_verb_adj(verb_type=Is, adj_type=You):
-            subj = rule.to_subject()
-            if subj is not None:
-                # lst = []
-                # for word in subj.words:
-                #     if isinstance(word, (Conjunction, Conditional)):
-                #         subjects.append(lst)
-                #         lst = []
-                #     else:
-                #         lst.append(word)
-                if subj.is_simple():
-                    subjects.append(subj)
-        return subjects
+    def noun_phrases_is_you_iter(self) -> Iterator[Ramble]:
+        for rule in self.rules_with_iter(verb_type=Is, obj_type=You):
+            yield rule.subject
+
+    def noun_phrases_is_win_iter(self) -> Iterator[Ramble]:
+        for rule in self.rules_with_iter(verb_type=Is, obj_type=Win):
+            yield rule.subject
     
-    def nouns_is_you(self) -> list[Word]:
-        nouns = []
-        return nouns
-    
-    def images_is_you(self) -> list[Image]:
-        images = []
-        return images
+    def images_is_you_iter(self) -> Iterator[ImageBlock]:
+        # TODO: figure out what we return: image block location? square? image itself?
+        for noun_phrases in self.noun_phrases_is_you_iter():
+            # TODO: this is where logic tied to conditional/subject nouns comes into play
+            yield None
+        
             
     def __repr__(self) -> str:
         left_sep = '['
@@ -564,8 +498,8 @@ class Level(BaseModel):
     def from_board(cls, board: Board) -> Self:
         return Level(history=[board])
     
-    def rules(self) -> list[Sentence]:
-        return self.board.rules()
+    def rules_iter(self) -> Iterator[Rule]:
+        return self.board.rules_iter()
         
     def forward(self, d: Direction) -> None:
         raise NotImplementedError()
@@ -582,10 +516,15 @@ class Level(BaseModel):
             
     
 if __name__ == "__main__":
-    s = Sentence(words=[You(), Is(), Baba(), And(), Robot(), Is(), Push(), And(), You(), Is(), Baba()])
+    s = Ramble(words=[You(), Is(), Baba(), On(), Robot(), Is(), Push(), And(), You(), Is(), Baba()])
     print(f'{s=}')
-    r = s.to_first_rule()
+    r = s.to_rule()
     print(f'{r=}')
+    rsf = r.to_simplest_forms()
+    print(f'{len(rsf)=}')
+    for r in rsf:
+        print(f'{r.is_simplest_form()=}')
+        print(f'{r=}')
     
     d = Direction.DOWN
     print(f'{d=}, {d._name_=}, {d.as_loc()=}')
@@ -612,5 +551,7 @@ if __name__ == "__main__":
     board.add_block(y=1, x=2, block=Is())
     board.add_block(y=1, x=3, block=You())
     print(f'{board=}')
+    print(f'{list(board.noun_phrases_is_you_iter())=}')
+    print(f'{list(board.noun_phrases_is_win_iter())=}')
     level = Level.from_board(board=board)
     print(f'{level=}')
